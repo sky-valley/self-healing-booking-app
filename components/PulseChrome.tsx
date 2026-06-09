@@ -45,14 +45,6 @@ export function PulseChrome({ children }: { children: React.ReactNode }) {
               <span className="h-1.5 w-1.5 rounded-full bg-pulse-lime-deep" />
               All systems healthy
             </span>
-            {/* Unobtrusive presenter affordance — not part of the operator UX. */}
-            <Link
-              href="/differ"
-              title="Differ operator view"
-              className="grid h-7 w-7 place-items-center rounded-full border border-pulse-line text-pulse-muted hover:text-pulse-ink"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-current" />
-            </Link>
           </div>
         </div>
       </header>

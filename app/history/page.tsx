@@ -1,21 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PulseChrome } from "@/components/PulseChrome";
-import { useDemoState, control } from "@/components/useDemoState";
 import { buildReservationCsv, MissingFieldError } from "@/lib/csv";
-import type { Divergence, HealState, Instance } from "@/lib/types";
 
 interface ExportPayload {
   rows: Record<string, unknown>[];
 }
 
-type Phase = "idle" | "error" | "healing" | "success";
+type Phase = "idle" | "error" | "success";
 
 const CSV_FILENAME = "tablefront-reservations.csv";
-// Narratable gap between detect and heal so the "healing" beat is visible on
-// both the user view and /differ (matches the operator-view analyzing flourish).
-const HEAL_DELAY_MS = 1500;
 
 function downloadCsv(csv: string, name: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -30,31 +25,10 @@ function downloadCsv(csv: string, name: string) {
 }
 
 export default function ReservationsPage() {
-  const { state } = useDemoState();
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [errorMsg, setErrorMsg] = useState(
-    'CSV export failed: expected field "party_size" was undefined for one or more rows.',
-  );
-  const [localError, setLocalError] = useState(false);
-  const [triggering, setTriggering] = useState(false);
-
-  const lastHeal = useRef<HealState | null>(null);
-  const hadFailure = useRef(false);
-  const downloadedFor = useRef<string | null>(null);
-
-  const active: Instance | undefined = state?.instances.find(
-    (i) => i.id === state.activeInstanceId,
-  );
-  const healState = active?.healState ?? "armed";
-
-  // Display phase is derived from server truth (healState), with a brief local
-  // optimistic error so the failure shows the instant the user clicks.
-  const phase: Phase = useMemo(() => {
-    if (healState === "healed") return "success";
-    if (healState === "detecting") return hadFailure.current ? "healing" : "idle";
-    if (healState === "broken") return "error";
-    return localError ? "error" : "idle"; // armed
-  }, [healState, localError]);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const fetchRows = useCallback(async (): Promise<Record<string, unknown>[]> => {
     const res = await fetch("/api/export/activities", { cache: "no-store" });
@@ -64,80 +38,32 @@ export default function ReservationsPage() {
   }, []);
 
   useEffect(() => {
-    fetchRows();
-  }, [fetchRows]);
+    fetch("/api/export/activities", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: ExportPayload) => setRows(data.rows));
+  }, []);
 
-  // The export the user clicks — builds the CSV exactly as the stem does.
+  // The export the user clicks. The CSV builder reads `party_size`; the backend
+  // now returns `covers`, so this throws and the export fails.
   const runExport = useCallback(async () => {
-    if (!active || triggering) return;
-
-    // RETRY on a known-broken instance => let Differ heal it autonomously
-    // (detect -> brief healing beat -> apply divergence). The healed effect
-    // below then auto-retries the export and downloads a valid CSV.
-    if (active.healState === "broken" || localError) {
-      setTriggering(true);
-      try {
-        hadFailure.current = true;
-        await control({ action: "capture-break", instanceId: active.id }); // idempotent: ensure broken
-        await control({ action: "detect", instanceId: active.id });
-        await new Promise((r) => setTimeout(r, HEAL_DELAY_MS));
-        await control({ action: "heal", instanceId: active.id });
-      } finally {
-        setTriggering(false);
-      }
-      return;
-    }
-
-    // FIRST attempt: build exactly as the stem does => throws under drift.
-    const data = await fetchRows();
-    const divs = state?.divergences.filter((d) => d.instanceId === active.id) ?? [];
+    if (busy) return;
+    setBusy(true);
     try {
-      const csv = buildReservationCsv(data, divs);
+      const data = await fetchRows();
+      const csv = buildReservationCsv(data);
       downloadCsv(csv, CSV_FILENAME);
+      setPhase("success");
     } catch (err) {
-      hadFailure.current = true;
-      setLocalError(true);
+      setPhase("error");
       setErrorMsg(
         err instanceof MissingFieldError
           ? err.message
           : "CSV export failed unexpectedly.",
       );
-      // Report the runtime failure to Differ's signal plane.
-      await control({ action: "capture-break", instanceId: active.id });
+    } finally {
+      setBusy(false);
     }
-  }, [active, fetchRows, state, localError, triggering]);
-
-  // Autonomous heal: when the operator's heal lands (healState -> "healed"),
-  // the previously broken export retries itself and downloads a valid CSV.
-  useEffect(() => {
-    const prev = lastHeal.current;
-    lastHeal.current = healState;
-    if (!active) return;
-
-    if (
-      healState === "healed" &&
-      hadFailure.current &&
-      downloadedFor.current !== active.id
-    ) {
-      downloadedFor.current = active.id;
-      (async () => {
-        const data = await fetchRows();
-        const divs =
-          state?.divergences.filter((d) => d.instanceId === active.id) ?? [];
-        // Heal guard (PRD §7): guaranteed=true => always a valid CSV.
-        const csv = buildReservationCsv(data, divs, true);
-        downloadCsv(csv, CSV_FILENAME);
-      })();
-    }
-
-    // A genuine reset (or switching to a pristine instance) moves a non-armed
-    // state back to "armed". Only then do we clear local failure flags.
-    if (prev && prev !== "armed" && healState === "armed") {
-      hadFailure.current = false;
-      downloadedFor.current = null;
-      setLocalError(false);
-    }
-  }, [healState, active, fetchRows, state]);
+  }, [busy, fetchRows]);
 
   return (
     <PulseChrome>
@@ -150,14 +76,11 @@ export default function ReservationsPage() {
           CSV for accounting and end-of-period reporting.
         </p>
 
-        {/* Export panel — the cold path. Failures must read from the back of a room. */}
         <ExportPanel
           phase={phase}
           errorMsg={errorMsg}
-          instanceLabel={active?.label ?? ""}
           rowCount={rows.length}
-          disabled={!active}
-          busy={triggering}
+          busy={busy}
           onExport={runExport}
         />
 
@@ -170,17 +93,13 @@ export default function ReservationsPage() {
 function ExportPanel({
   phase,
   errorMsg,
-  instanceLabel,
   rowCount,
-  disabled,
   busy,
   onExport,
 }: {
   phase: Phase;
   errorMsg: string;
-  instanceLabel: string;
   rowCount: number;
-  disabled: boolean;
   busy: boolean;
   onExport: () => void;
 }) {
@@ -190,12 +109,12 @@ function ExportPanel({
         <div>
           <h2 className="font-display text-xl font-bold">Export to CSV</h2>
           <p className="text-sm text-pulse-muted">
-            {rowCount || 13} reservations · {instanceLabel || "loading…"}
+            {rowCount || 13} reservations · TableFront
           </p>
         </div>
         <button
           onClick={onExport}
-          disabled={disabled || busy || phase === "healing"}
+          disabled={busy}
           className={`ml-auto rounded-full px-6 py-3 font-display text-base font-bold transition ${
             phase === "error"
               ? "bg-pulse-coral text-white"
@@ -222,18 +141,6 @@ function ExportPanel({
         </div>
       )}
 
-      {phase === "healing" && (
-        <div className="animate-signal-in border-t border-pulse-line bg-pulse-lime/15 px-6 py-4">
-          <p className="flex items-center gap-2.5 text-sm font-semibold text-pulse-lime-deep">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-pulse-lime-deep/60" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-pulse-lime-deep" />
-            </span>
-            Differ is healing this for you&hellip;
-          </p>
-        </div>
-      )}
-
       {phase === "success" && (
         <div className="animate-signal-in border-t-2 border-pulse-lime bg-pulse-lime/15 px-6 py-5">
           <p className="flex items-center gap-2.5 font-display text-lg font-bold text-pulse-lime-deep">
@@ -249,8 +156,8 @@ function ExportPanel({
 }
 
 function ReservationTable({ rows }: { rows: Record<string, unknown>[] }) {
-  // The on-page preview is lenient (reads whichever party field is present),
-  // so the page looks healthy. Only the strict CSV builder breaks on drift.
+  // The on-page preview reads whichever party field is present, so the table
+  // still renders even though the strict CSV export breaks on the rename.
   const STATUS: Record<string, string> = {
     confirmed: "bg-pulse-lime/30 text-pulse-lime-deep",
     seated: "bg-amber-100 text-amber-800",
