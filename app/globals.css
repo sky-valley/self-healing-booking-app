@@ -1,26 +1,97 @@
 @import "tailwindcss";
 
+@theme {
+  /* TableFront — warm, refined hospitality surface */
+  --color-pulse-bg: #faf7f1;
+  --color-pulse-card: #ffffff;
+  --color-pulse-ink: #1a160f;
+  --color-pulse-muted: #726c61;
+  --color-pulse-line: #e9e4d9;
+  --color-pulse-lime: #2fbf76;
+  --color-pulse-lime-deep: #14532d;
+  --color-pulse-coral: #d8553a;
+
+  /* Differ — dark mission-control surface */
+  --color-differ-bg: #080b11;
+  --color-differ-panel: #0f141d;
+  --color-differ-panel2: #131a25;
+  --color-differ-line: #1f2a38;
+  --color-differ-text: #c7d2de;
+  --color-differ-dim: #6b7888;
+  --color-differ-cyan: #34d6f5;
+  --color-differ-amber: #f5b73d;
+  --color-differ-red: #ff5c5c;
+  --color-differ-green: #38e08a;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- shared motion ---- */
+@keyframes signal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-signal-in {
+  animation: signal-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 92, 92, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(255, 92, 92, 0);
+  }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 1.4s ease-out infinite;
+}
+
+@keyframes scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+.animate-scan {
+  animation: scan 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-signal-in,
+  .animate-pulse-ring,
+  .animate-scan,
+  .animate-rise {
+    animation: none;
+  }
 }
