@@ -124,3 +124,5 @@ simulations.
 `/api/export/activities` emits `covers` (post-rename, **demo default**) or
 `party_size` (legacy) based on `drift.enabled` in `lib/store.ts`. The demo starts
 drifted, so the break is already latent on load.
+
+<!-- trigger re-import: retry Differ observability injection -->
