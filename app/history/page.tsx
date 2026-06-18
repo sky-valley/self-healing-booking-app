@@ -54,6 +54,10 @@ export default function ReservationsPage() {
       downloadCsv(csv, CSV_FILENAME);
       setPhase("success");
     } catch (err) {
+      (window as any).posthog?.capture("$exception", {
+        $exception_type: err instanceof MissingFieldError ? "MissingFieldError" : "Error",
+        $exception_message: err instanceof Error ? err.message : String(err),
+      });
       setPhase("error");
       setErrorMsg(
         err instanceof MissingFieldError
