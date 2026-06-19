@@ -60,6 +60,7 @@ export default function ReservationsPage() {
           ? err.message
           : "CSV export failed unexpectedly.",
       );
+      throw err;
     } finally {
       setBusy(false);
     }
