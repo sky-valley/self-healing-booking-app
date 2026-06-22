@@ -39,7 +39,7 @@ export function FaultButton() {
         Hits <code className="font-mono text-pulse-ink">/api/boom</code>, which
         throws on the server.
       </p>
-      <div className="mt-4 flex items-center gap-4">
+      <div className="mt-4 flex flex-wrap items-center gap-4">
         <button
           onClick={boom}
           disabled={pending}
@@ -47,6 +47,13 @@ export function FaultButton() {
         >
           {pending ? "Throwing…" : "Throw a 500"}
         </button>
+        {/* Full page load so the actual Next.js 500 error page renders. */}
+        <a
+          href="/boom"
+          className="rounded-full border border-pulse-line px-5 py-2.5 text-sm font-semibold text-pulse-ink transition hover:bg-pulse-line/50"
+        >
+          Open a 500 page
+        </a>
         {outcome?.kind === "ok" && (
           <span
             className={`text-sm font-semibold ${
