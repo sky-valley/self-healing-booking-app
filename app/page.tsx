@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PulseChrome } from "@/components/PulseChrome";
+import { FaultButton } from "@/components/FaultButton";
 import type { SummaryStat, ReservationSummary } from "@/lib/data";
 
 interface Summary {
@@ -112,6 +113,8 @@ export default function DashboardPage() {
           </section>
         </div>
       )}
+
+      <FaultButton />
     </PulseChrome>
   );
 }
