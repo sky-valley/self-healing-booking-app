@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { FaultPostit } from "@/components/FaultPostit";
 
 // Self-hosted at build time by next/font -> no network needed at runtime.
 const display = Bricolage_Grotesque({
@@ -32,7 +33,10 @@ export default function RootLayout({
       lang="en"
       className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        <FaultPostit />
+      </body>
     </html>
   );
 }

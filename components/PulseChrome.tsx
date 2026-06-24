@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/history", label: "Reservations" },
+  { href: "/reservations/new", label: "New booking" },
+  { href: "/faults", label: "Fault lab" },
 ];
 
 export function PulseChrome({ children }: { children: React.ReactNode }) {
